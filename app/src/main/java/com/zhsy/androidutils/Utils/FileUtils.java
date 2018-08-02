@@ -3,7 +3,11 @@ package com.zhsy.androidutils.Utils;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.os.Environment;
+import android.text.TextUtils;
+import android.util.Log;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -16,7 +20,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Serializable;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.SimpleDateFormat;
@@ -271,4 +278,246 @@ public class FileUtils {
         }
         return bitmap;
     }
+    /**
+     * 写入对象
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    public static boolean saveObject(Serializable ser, String file, Context context) {
+        FileOutputStream fos = null;
+        ObjectOutputStream oos = null;
+        try {
+            fos = context.openFileOutput(file, Context.MODE_PRIVATE);
+            oos = new ObjectOutputStream(fos);
+            oos.writeObject(ser);
+            oos.flush();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                oos.close();
+            } catch (Exception e) {
+            }
+            try {
+                fos.close();
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    /**
+     * 读取对象
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    public static Serializable readObject(String file,Context context) {
+        FileInputStream fis = null;
+        ObjectInputStream ois = null;
+        try {
+            fis = context.openFileInput(file);
+            ois = new ObjectInputStream(fis);
+            return (Serializable) ois.readObject();
+        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                ois.close();
+            } catch (Exception e) {
+            }
+            try {
+                fis.close();
+            } catch (Exception e) {
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 根据时间间隔判断是否需要刷新服务器数据
+     *
+     * @param cachefile
+     * @return
+     * @throws IOException
+     */
+    public static boolean isCacheDataFailure(String cachefile,Context context) {
+        boolean failure = false;
+        File data = context.getFileStreamPath(cachefile);
+        if (data.exists()
+                && (System.currentTimeMillis() - data.lastModified()) > 60000)
+            failure = true;
+        else if (!data.exists())
+            failure = true;
+        return failure;
+    }
+
+
+
+
+    private static final String TAG = "FileUtil";
+    private static final String HEADPHOTO_PATH = "/data/com.zhsy.ssoAuth/";
+    public static final String HEADPHOTO_NAME_TEMP = "user_photo_temp.jpg";
+    public static final String HEADPHOTO_NAME_RAW = "user_photo_raw.jpg";
+    private static final String WALLPAPER = "wallpaper.jpg";
+    private static String ALBUM_PATH = Environment.getExternalStorageDirectory() + "/com.zhsy.ssoauth/";
+    public static final String HEADPHOTO_NAME_LOGIN = "login.txt";
+    public static final String APP_ERROR_LOG_NAME = "errlog.txt";
+
+    public static String getCropPath(String path)
+    {
+        String storageState = Environment.getExternalStorageState();
+        if ("removed".equals(storageState)) {
+            return null;
+        }
+        String dirPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/data/com.zhsy.ssoAuth/" + "cache" + File.separator;
+        String s = MD5.Md5Encode(path) + ".jpg";
+        return dirPath + s;
+    }
+
+    public static String getHeadPhotoDir()
+    {
+        String storageState = Environment.getExternalStorageState();
+        if ("removed".equals(storageState)) {
+            return null;
+        }
+        String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/data/com.zhsy.ssoAuth/";
+        SDCardUtils.mkdirs(path);
+        return path;
+    }
+
+    public static File getHeadPhotoFileTemp()
+    {
+        File file = new File(getHeadPhotoDir() + "user_photo_temp.jpg");
+        return file;
+    }
+
+    public static File getHeadPhotoFileRaw()
+    {
+        File file = new File(getHeadPhotoDir() + "user_photo_raw.jpg");
+        return file;
+    }
+
+    public static File getWallPaperFile()
+    {
+        File file = new File(getHeadPhotoDir() + "wallpaper.jpg");
+        return file;
+    }
+
+    public static void saveCutBitmapForCache(Context context, Bitmap bitmap) {
+        File file = new File(getHeadPhotoDir() + "user_photo_raw.jpg");
+        try {
+            FileOutputStream out = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out);
+            out.flush();
+            out.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static int readPictureDegree(String path)
+    {
+        int degree = 0;
+        try {
+            ExifInterface exifInterface = new ExifInterface(path);
+            int orientation = exifInterface.getAttributeInt("Orientation", 1);
+            switch (orientation) {
+                case 6:
+                    degree = 90;
+                    break;
+                case 3:
+                    degree = 180;
+                    break;
+                case 8:
+                    degree = 270;
+                case 4:
+                case 5:
+                case 7: } } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return degree;
+    }
+
+    public static Bitmap rotaingImageView(int angle, Bitmap bitmap)
+    {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(angle);
+        System.out.println("angle2=" + angle);
+
+        Bitmap resizedBitmap = Bitmap.createBitmap(bitmap, 0, 0,
+                bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        return resizedBitmap;
+    }
+
+    public static boolean deleteFile(String filePath)
+    {
+        if (TextUtils.isEmpty(filePath)) {
+            return false;
+        }
+
+        File file = new File(filePath);
+        if (!(file.exists())) {
+            Log.w("FileUtil", "the file is not exist while delete the file");
+            return false;
+        }
+
+        return deleteDir(file);
+    }
+
+    private static boolean deleteDir(File dir)
+    {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            if (children != null)
+            {
+                for (int i = 0; i < children.length; ++i) {
+                    boolean success = deleteDir(new File(dir, children[i]));
+                    if (!(success)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if ((!(dir.canRead())) || (!(dir.canWrite()))) {
+            Log.w("FileUtil", "has no permission to can or write while delete the file");
+            return false;
+        }
+
+        return dir.delete();
+    }
+
+    public static Bitmap getBitmapFromFile(String url)
+    {
+        Bitmap bitmap = null;
+        String fileName = MD5.getMD5Str(url);
+        if (fileName == null)
+            return null;
+        String filePath = ALBUM_PATH + "/" + fileName;
+        try {
+            FileInputStream fis = new FileInputStream(filePath);
+            bitmap = BitmapFactory.decodeStream(fis);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            bitmap = null;
+        }
+        return bitmap;
+    }
+
+    public static void deleteTempAndRaw()
+    {
+        deleteFile(getHeadPhotoDir() + "user_photo_temp.jpg");
+        deleteFile(getHeadPhotoDir() + "user_photo_raw.jpg");
+    }
+
+    public static void deleteTempLogin() {
+        deleteFile(getHeadPhotoDir() + "login.txt");
+    }
+
 }
